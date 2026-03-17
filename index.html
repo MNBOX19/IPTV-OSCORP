@@ -293,7 +293,7 @@
         };
 
         // ============================================================
-        // PLAYER ENGINE CORRIGIDO - COM FREEZE-FRAME GARANTIDO
+        // PLAYER ENGINE CORRIGIDO - COM FREEZE-FRAME E RECONEXÃO GARANTIDOS
         // ============================================================
         var PlayerEngine = {
             video: null, 
@@ -402,7 +402,7 @@
                 this.hideBuffer();
             },
 
-            destroy: function() {
+            destroy: function(isRetry) {
                 if (this.isDestroying) return;
                 this.isDestroying = true;
                 
@@ -425,13 +425,17 @@
                     } catch (e) {}
                 }
                 
-                this.url = null;
-                this.clearFreeze();
-                this.hideBuffer();
+                if (!isRetry) {
+                    this.url = null;
+                    this.clearFreeze();
+                    this.hideBuffer();
+                }
                 this.isDestroying = false;
             },
 
             play: function(url) {
+                if (!url) return;
+
                 if(this.url === url && this.video && !this.video.paused && this.video.readyState > 2) {
                     return;
                 }
@@ -443,9 +447,7 @@
                 
                 var isRetry = (this.url === url);
                 
-                if (!isRetry) {
-                    this.destroy();
-                }
+                this.destroy(isRetry);
                 
                 this.url = url; 
                 this.stallCount = 0; 
@@ -551,7 +553,8 @@
                     if (this.retryCount > 6) msg = 'SINAL FRACO - AGUARDE...';
                     this.showBuffer(msg);
                     
-                    this.destroy();
+                    var savedUrl = this.url; 
+                    this.destroy(true); 
                     
                     var delay = 2000; 
                     if (this.retryCount > 2) delay = 3000;
@@ -560,18 +563,19 @@
                     
                     if (this.retryTimeout) clearTimeout(this.retryTimeout);
                     this.retryTimeout = setTimeout(function() { 
-                        PlayerEngine.play(PlayerEngine.url); 
+                        if (savedUrl) PlayerEngine.play(savedUrl); 
                         PlayerEngine.retryTimeout = null;
                     }, delay);
                 } else {
                     this.freezeFrame();
                     this.showBuffer('FALHA NO SINAL. VERIFIQUE SUA INTERNET.');
                     this.retryCount = 0;
+                    this.destroy(false);
                 }
             },
 
             hardStop: function() { 
-                this.destroy();
+                this.destroy(false);
             }
         };
 
@@ -649,7 +653,7 @@
                     var currentUrl = PlayerEngine.url;
                     PlayerEngine.freezeFrame(); 
                     PlayerEngine.showBuffer('ATUALIZANDO LINK...'); 
-                    PlayerEngine.destroy();
+                    PlayerEngine.destroy(true); // O true foi adicionado aqui
                     setTimeout(function() {
                         if (currentUrl) PlayerEngine.play(currentUrl);
                     }, 2000); 
@@ -661,7 +665,7 @@
                     if (this.refreshTimer) { clearTimeout(this.refreshTimer); } 
                     this.refreshTimer = setTimeout(function() { App.performAutoRefresh(); }, 30 * 60 * 1000); 
                 } else { 
-                    PlayerEngine.destroy(); 
+                    PlayerEngine.destroy(false); 
                     localStorage.removeItem('rc_session_start'); 
                     localStorage.removeItem('rc_refresh_interval'); 
                     setTimeout(function() { location.reload(); }, 500); 
@@ -747,11 +751,11 @@
                     }
                 });
             },
-            logout: function() { PlayerEngine.destroy(); localStorage.clear(); location.reload(); },
+            logout: function() { PlayerEngine.destroy(false); localStorage.clear(); location.reload(); },
 
             setScr: function(n) {
                 this.lastScreenSwitch = new Date().getTime();
-                if(n===1) { PlayerEngine.destroy(); }
+                if(n===1) { PlayerEngine.destroy(false); }
                 var layers = document.querySelectorAll('.layer'); for(var i=0; i<layers.length; i++) { layers[i].classList.add('hide'); }
                 if(n===0) document.getElementById('login-layer').classList.remove('hide'); if(n===1) document.getElementById('dash-layer').classList.remove('hide');
                 if(n===2) { document.getElementById('content-layer').classList.remove('hide'); document.getElementById('btn-back').classList.remove('hide'); this.page = 0; } else { var btn = document.getElementById('btn-back'); if(btn) btn.classList.add('hide'); }
@@ -802,7 +806,7 @@
                 document.getElementById('cat-list').innerHTML = ''; 
                 document.getElementById('item-list').innerHTML = '<div style="padding:20px; text-align:center; color:#888; font-weight: bold; font-size: 2vh; margin-top: 20vh;">&larr; SELECIONE UMA CATEGORIA</div>';
                 
-                mode = mode || 'live'; App.currentMode = mode; PlayerEngine.destroy(); this.resetInfo(); requestNativeFullscreen();
+                mode = mode || 'live'; App.currentMode = mode; PlayerEngine.destroy(false); this.resetInfo(); requestNativeFullscreen();
                 this.playingId = null; this.page = 0; this.validCategories = null; this.setScr(2);
                 var t = App.i18n[App.cfg.lang]; document.getElementById('search').value = ''; 
                 
@@ -835,7 +839,7 @@
                 });
             },
             
-            resetInfo: function() { document.getElementById('meta-title').innerHTML = '<span style="color:#fff">IPTV</span>&nbsp;OSCORP'; document.getElementById('meta-desc').innerText = ""; PlayerEngine.destroy(); document.getElementById('pause-layer').style.display = 'none'; PlayerEngine.clearFreeze(); },
+            resetInfo: function() { document.getElementById('meta-title').innerHTML = '<span style="color:#fff">IPTV</span>&nbsp;OSCORP'; document.getElementById('meta-desc').innerText = ""; PlayerEngine.destroy(false); document.getElementById('pause-layer').style.display = 'none'; PlayerEngine.clearFreeze(); },
             
             catClick: function(i, isTrusted) { 
                 if (!isTrusted && new Date().getTime() - (this.lastScreenSwitch || 0) < 500) return;
@@ -1345,13 +1349,13 @@
         });
 
         window.addEventListener('beforeunload', function() {
-            PlayerEngine.destroy();
+            PlayerEngine.destroy(false);
         });
         window.addEventListener('unload', function() {
-            PlayerEngine.destroy();
+            PlayerEngine.destroy(false);
         });
         window.addEventListener('pagehide', function() {
-            PlayerEngine.destroy();
+            PlayerEngine.destroy(false);
         });
     </script>
 </body>
