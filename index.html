@@ -13,7 +13,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.light.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
     
     <style>
         * { 
@@ -21,7 +20,6 @@
             -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;           
         }
         
-        /* OTIMIZAÇÃO EXTREMA PARA PHILCO PTV24G50SN */
         html, body {
             background: #000000; color: #ffffff; font-family: 'Montserrat', sans-serif;
             position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; 
@@ -44,7 +42,6 @@
 
         button, .smart-card, .cat-item, .item, .power-btn, .key, .toggle-btn { cursor: pointer; }
         
-        /* OTIMIZAÇÃO VISUAL PARA TVS FRACAS */
         .focused { 
             border: 3px solid #fff !important; background: #FFD700 !important; color: #000 !important; 
             z-index: 50; box-shadow: none !important; transform: none !important;
@@ -105,18 +102,18 @@
         .item.playing { color: #FFD700; background: #111; border-left: 4px solid #FFD700; }
         .fav-icon { float: right; color: #FFD700; }
 
-        /* CORREÇÃO DO VÍDEO ESTOURADO (FORÇANDO LIMITES E FILL) */
+        /* MODO FILL BLINDADO: A JANELA NUNCA MAIS DARÁ ZOOM ERRADO */
         .vid-box { 
             width: 100%; height: 50vh; background: #000; position: relative; border-bottom: 2px solid #222; overflow: hidden; flex-shrink: 0; display: block;
         }
         
         #player-container { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; overflow: hidden;
         }
         
         video { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            object-fit: fill !important; /* Força o preenchimento ignorando a proporção */
+            object-fit: fill !important; /* FORÇA O PREENCHIMENTO TOTAL */
             background: #000; z-index: 1; 
         }
 
@@ -179,7 +176,7 @@
             </div>
             <div class="config-row">
                 <div id="s2" class="toggle-btn focusable" onclick="App.toggleCfg('filter')"><span id="lbl-set-filter">XXX:</span> <span id="lbl-filter" style="color:#fff">NÃO</span></div>
-                <div id="s3" class="toggle-btn focusable" onclick="App.toggleFormat()"><span id="lbl-set-format">FMT:</span> <span id="lbl-format" style="color:#fff">M3U8 NAT</span></div>
+                <div id="s3" class="toggle-btn focusable" onclick="App.toggleFormat()"><span id="lbl-set-format">FMT:</span> <span id="lbl-format" style="color:#fff">TS NAT</span></div>
             </div>
             
             <button id="s4" class="btn focusable" onclick="App.closeSettings()" style="background: #333; color: #fff; margin-top: 20px;">VOLTAR</button>
@@ -281,9 +278,13 @@
             isFav: function(id) { return this.list.indexOf(id) > -1; }
         };
 
+        /* ==========================================================
+           PLAYER ENGINE V8 - BLINDADO PARA PHILCO
+           Resolve o problema de Zoom e usa Aceleração de Hardware (TS)
+           ========================================================== */
         var PlayerEngine = {
             video: null, url: null, monitorTimer: null, lastTime: 0, stallCount: 0, retryCount: 0, maxRetries: 5,
-            hlsInstance: null, mpegtsInstance: null, isBuffering: false, retryTimeout: null, isDestroying: false,
+            hlsInstance: null, isBuffering: false, retryTimeout: null, isDestroying: false,
 
             init: function() { this.bindVideo(); },
 
@@ -306,31 +307,7 @@
             
             destroyPlayers: function() {
                 if(this.hlsInstance) { this.hlsInstance.destroy(); this.hlsInstance = null; }
-                if(this.mpegtsInstance) { this.mpegtsInstance.destroy(); this.mpegtsInstance = null; }
                 if(this.video) { try { this.video.removeAttribute('src'); this.video.load(); } catch(e){} }
-            },
-
-            // RECRIAÇÃO DO DOM COM LIMITES ABSOLUTOS E FILL
-            resetDOM: function() {
-                this.destroyPlayers();
-                var container = document.getElementById('player-container');
-                if(container) {
-                    container.innerHTML = '';
-                    var newVid = document.createElement('video');
-                    newVid.id = 'player';
-                    newVid.style.position = 'absolute';
-                    newVid.style.top = '0';
-                    newVid.style.left = '0';
-                    newVid.style.width = '100%';
-                    newVid.style.height = '100%';
-                    newVid.style.objectFit = 'fill'; // Forçando FILL por JS
-                    newVid.style.background = '#000';
-                    newVid.setAttribute('playsinline', 'true');
-                    newVid.setAttribute('webkit-playsinline', 'true');
-                    newVid.setAttribute('autoplay', 'true');
-                    container.appendChild(newVid);
-                    this.bindVideo();
-                }
             },
 
             onPlaySuccess: function() {
@@ -355,13 +332,10 @@
                         this.hlsInstance.loadSource(url); this.hlsInstance.attachMedia(this.video);
                         this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() { safePlay(PlayerEngine.video); });
                         this.hlsInstance.on(Hls.Events.ERROR, function(event, data) { if (data.fatal) PlayerEngine.fallbackNative(url); });
-                    } else if (!isM3u8 && typeof mpegts !== 'undefined' && mpegts.isSupported()) {
-                        try {
-                            this.mpegtsInstance = mpegts.createPlayer({ type: 'mse', isLive: true, url: url }, { liveBufferLatencyChasing: true, enableStashBuffer: false });
-                            this.mpegtsInstance.attachMediaElement(this.video); this.mpegtsInstance.load(); safePlay(this.video);
-                            this.mpegtsInstance.on(mpegts.Events.ERROR, function() { PlayerEngine.fallbackNative(url); });
-                        } catch(e) { PlayerEngine.fallbackNative(url); }
-                    } else { this.fallbackNative(url); }
+                    } else { 
+                        // O SEGREDO ESTÁ AQUI: Vai direto pro hardware da TV para não lagar o TS
+                        this.fallbackNative(url); 
+                    }
                     this.startMonitor();
                 } else {
                     this.stopMonitor(); 
@@ -369,11 +343,32 @@
                 }
             },
 
+            // RECRIAR O PLAYER FORÇA A TV A CORRIGIR O BUG DO ZOOM E LIMPAR A MEMÓRIA
             fallbackNative: function(url) {
                 this.destroyPlayers();
-                this.video.src = url;
-                if (App.currentMode !== 'live') { try { this.video.load(); } catch(e) {} }
-                safePlay(this.video);
+                
+                var container = document.getElementById('player-container');
+                if(container) {
+                    container.innerHTML = ''; // Apaga o player velho
+                    var newVid = document.createElement('video'); // Cria um novo do zero
+                    newVid.id = 'player';
+                    newVid.style.position = 'absolute';
+                    newVid.style.top = '0';
+                    newVid.style.left = '0';
+                    newVid.style.width = '100%';
+                    newVid.style.height = '100%';
+                    newVid.style.objectFit = 'fill'; // Força o FILL imediatamente
+                    newVid.style.background = '#000';
+                    newVid.setAttribute('playsinline', 'true');
+                    newVid.setAttribute('webkit-playsinline', 'true');
+                    
+                    newVid.src = url;
+                    if (App.currentMode !== 'live') { try { newVid.load(); } catch(e) {} }
+                    
+                    container.appendChild(newVid);
+                    this.bindVideo();
+                    safePlay(this.video);
+                }
             },
 
             showBuffer: function(msg) {
@@ -405,12 +400,10 @@
                 if (this.retryCount < this.maxRetries) {
                     this.retryCount++;
                     this.showBuffer('RECONECTANDO (' + this.retryCount + ')...');
-                    if(this.retryCount > 2 || isStall) this.resetDOM();
                     var delay = this.retryCount > 3 ? 2500 : 1000;
                     setTimeout(function() { 
-                        if(PlayerEngine.video && PlayerEngine.url) {
-                            PlayerEngine.video.src = PlayerEngine.url; safePlay(PlayerEngine.video);
-                        }
+                        // Recria o elemento para tentar de novo sem lixo na memória
+                        if(PlayerEngine.url) { PlayerEngine.fallbackNative(PlayerEngine.url); }
                     }, delay);
                 } else {
                     this.showBuffer('FALHA NO SINAL. VERIFIQUE SUA INTERNET.');
@@ -425,7 +418,7 @@
 
         var App = {
             validCategories: null, scr: 0, zone: 0, idx: 0, lastCatIdx: -1, creds: {}, fullData: [], playingId: null,
-            cfg: { filter: false, format: 'm3u8_native', lang: 'pt' }, userInfo: null, lastEnter: 0,
+            cfg: { filter: false, format: 'ts_native', lang: 'pt' }, userInfo: null, lastEnter: 0,
             categoryDataCache: null, showingEpisodes: false, lastScreenSwitch: 0,
             seriesDataCache: null, lastSeriesIdx: 0, sessionStartTime: null, 
             refreshInterval: 6 * 60 * 60 * 1000, 
@@ -467,10 +460,8 @@
                 setInterval(function() { window.status = "keep_alive_" + new Date().getTime(); }, 40000); 
                 
                 if(localStorage.getItem('rc_cfg_filter')) this.cfg.filter = (localStorage.getItem('rc_cfg_filter') === 'true');
-                
-                // M3U8 FORÇADO COMO PADRÃO PARA EVITAR TRAVAMENTOS DO PROCESSADOR DA PHILCO
                 var savedFmt = localStorage.getItem('rc_cfg_format'); 
-                this.cfg.format = (savedFmt === 'm3u8_native' || savedFmt === 'ts_native') ? savedFmt : 'm3u8_native'; 
+                this.cfg.format = (savedFmt === 'm3u8_native' || savedFmt === 'ts_native') ? savedFmt : 'ts_native'; 
                 this.cfg.lang = 'pt'; 
                 
                 this.applyLang(); PlayerEngine.init(); setInterval(this.updateClock, 1000); this.updateClock();
