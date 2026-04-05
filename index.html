@@ -242,10 +242,10 @@
                 <div id="meta-desc" class="meta-desc"></div>
                 
                 <div class="keys">
-                    <div class="key" id="key-fs"><div class="dot" style="background-color:#FF0000; box-shadow: 0 0 10px #FF0000;"></div> TELA CHEIA (R)</div>
-                    <div class="key" id="key-top"><div class="dot" style="background-color:#00C851; box-shadow: 0 0 10px #00C851;"></div> TOPO (G)</div>
-                    <div class="key" id="key-search"><div class="dot" style="background-color:#ffbb33; box-shadow: 0 0 10px #ffbb33;"></div> BUSCAR (Y)</div>
-                    <div class="key" id="key-menu"><div class="dot" style="background-color:#33b5e5; box-shadow: 0 0 10px #33b5e5;"></div> MENU (B)</div>
+                    <div class="key" id="key-fs"><div class="dot" style="background-color:#FF0000; box-shadow: 0 0 10px #FF0000;"></div> TELA CHEIA</div>
+                    <div class="key" id="key-top"><div class="dot" style="background-color:#00C851; box-shadow: 0 0 10px #00C851;"></div> TOPO</div>
+                    <div class="key" id="key-search"><div class="dot" style="background-color:#ffbb33; box-shadow: 0 0 10px #ffbb33;"></div> BUSCAR</div>
+                    <div class="key" id="key-menu"><div class="dot" style="background-color:#33b5e5; box-shadow: 0 0 10px #33b5e5;"></div> CONFIG.</div>
                 </div>
             </div>
         </div>
@@ -698,7 +698,7 @@
                 if(rawT.length < 2) return; var tStr = App.removeAccents(rawT); var listEl = document.getElementById('item-list');
                 
                 if (isGlobal) {
-                    listEl.innerHTML = '<div style="padding:20px; text-align:center; color: var(--main-color); font-size: 2vh;"><i class="fas fa-circle-notch fa-spin" style="font-size: 5vh; margin-bottom: 15px;"></i><br><br>BUSCANDO NO CATÁLOGO GLOBAL...</div>';
+                    listEl.innerHTML = '<div style="padding:20px; text-align:center; color: var(--main-color); font-size: 2vh;"><i class="fas fa-circle-notch fa-spin" style="font-size: 5vh; margin-bottom: 15px;"></i><br><br>BUSCANDO...</div>';
                     var actionStrm = App.currentMode === 'live' ? 'get_live_streams' : (App.currentMode === 'movie' ? 'get_vod_streams' : 'get_series');
                     App.req(App.creds.h+"/player_api.php?username="+App.creds.u+"&password="+App.creds.p+"&action="+actionStrm, function(d) { 
                         if(d && d !== 'ERR_NET') { 
